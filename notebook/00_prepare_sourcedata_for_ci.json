@@ -18,14 +18,11 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "b3dcf79d-ce7d-461a-afd4-e3902c50f312"
+				"spark.autotune.trackingId": "423f77ac-71d6-425b-b194-279e5e613b82"
 			}
 		},
 		"metadata": {
 			"saveOutput": true,
-			"synapse_widget": {
-				"version": "0.1"
-			},
 			"enableDebugMode": false,
 			"kernelspec": {
 				"name": "synapse_pyspark",
@@ -41,14 +38,13 @@
 				"endpoint": "https://ursrueggcomworkspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/spark1",
 				"auth": {
 					"type": "AAD",
-					"authResource": "https://dev.azuresynapse.net",
-					"authHeader": null
+					"authResource": "https://dev.azuresynapse.net"
 				},
 				"sparkVersion": "3.3",
 				"nodeCount": 10,
 				"cores": 4,
 				"memory": 28,
-				"extraHeader": null
+				"automaticScaleJobs": false
 			},
 			"sessionKeepAliveTimeout": 30
 		},
@@ -99,7 +95,8 @@
 					"from pyspark.sql.types import *\n",
 					"from notebookutils import mssparkutils\n",
 					"import json"
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "markdown",
@@ -133,7 +130,8 @@
 					"file_system_name = 'users/sourcedata'\n",
 					"synapse_workspace_name = 'ursrueggcomworkspace'\n",
 					""
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -155,7 +153,8 @@
 					"except:\n",
 					"    print(\"Database already exists\")\n",
 					""
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -175,7 +174,8 @@
 					"filebasepath = f'abfss://{file_system_name}@{data_lake_account_name}.dfs.core.windows.net/sourcedata/'\n",
 					"df = spark.read.load(filebasepath + filename.lower() + '.csv', format='csv', header=True,inferSchema=True)\n",
 					"df.write.mode(\"overwrite\").saveAsTable(\"c360_data.\" + filename)"
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -223,7 +223,8 @@
 					"\n",
 					"    df.write.mode(\"overwrite\").saveAsTable(\"c360_data.\" + filename)\n",
 					"    "
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -283,7 +284,8 @@
 					"    definitions.append(d)\n",
 					"    return(definitions)\n",
 					""
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -469,7 +471,8 @@
 					"#delete the folder with parts file        \n",
 					"mssparkutils.fs.rm('/c360data/tempfolder',recurse=True)\n",
 					""
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -502,7 +505,8 @@
 					"mssparkutils.fs.cp(srcfilename,targetfilename, True)\n",
 					"\n",
 					"mssparkutils.fs.rm('/c360data',recurse=True)"
-				]
+				],
+				"execution_count": null
 			}
 		]
 	}
