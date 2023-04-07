@@ -1,0 +1,351 @@
+{
+	"name": "1_preparedata_from_ci",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"bigDataPool": {
+			"referenceName": "spark1",
+			"type": "BigDataPoolReference"
+		},
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"runAsWorkspaceSystemIdentity": false,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "e7e847fe-c45d-4443-a203-c4024aaecffd"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"synapse_widget": {
+				"version": "0.1"
+			},
+			"enableDebugMode": false,
+			"kernelspec": {
+				"name": "synapse_pyspark",
+				"display_name": "Synapse PySpark"
+			},
+			"language_info": {
+				"name": "python"
+			},
+			"a365ComputeOptions": {
+				"id": "/subscriptions/f39bf952-6a0c-4fac-bf30-0bf640da3752/resourceGroups/ursrueggcom/providers/Microsoft.Synapse/workspaces/ursrueggcomworkspace/bigDataPools/spark1",
+				"name": "spark1",
+				"type": "Spark",
+				"endpoint": "https://ursrueggcomworkspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/spark1",
+				"auth": {
+					"type": "AAD",
+					"authResource": "https://dev.azuresynapse.net",
+					"authHeader": null
+				},
+				"sparkVersion": "3.3",
+				"nodeCount": 10,
+				"cores": 4,
+				"memory": 28,
+				"extraHeader": null
+			},
+			"sessionKeepAliveTimeout": 30
+		},
+		"cells": [
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"Copyright (c) Microsoft Corporation.\n",
+					"\n",
+					"Licensed under the MIT License."
+				]
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"# Library Imports"
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"from notebookutils import mssparkutils\n",
+					"import pyspark.sql.functions as F\n",
+					"import re"
+				],
+				"execution_count": 4
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"# Read in Data from Azure Data Lake"
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					},
+					"collapsed": true,
+					"tags": [
+						"parameters"
+					]
+				},
+				"source": [
+					"#update below variables with synapse adls name and container/filesystem name\n",
+					"data_lake_account_name = 'https://ursrueggcomdatalake.dfs.core.windows.net' # Synapse Workspace ADLS\n",
+					"file_system_name = 'users/sourcedata'\n",
+					"resident_file_name = \"residents.csv\""
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					},
+					"collapsed": true
+				},
+				"source": [
+					"df = spark.sql(\"select CustomerId,sourcedata_residents_source1_cid,sourcedata_residents_source2_cid,SurveyEmail from ciexport.Customer\")\n",
+					"df = df.select(['CustomerId','sourcedata_residents_source1_cid','sourcedata_residents_source2_cid','SurveyEmail'])\n",
+					"#display(df1.take(10))\n",
+					"df.write.mode(\"overwrite\").saveAsTable(\"c360_data.customer_profile_ids\")\n",
+					""
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"sql_str = \"Select CustomerId, sourcedata_residents_source1_cid as cid, SurveyEmail from c360_data.customer_profile_ids \\\n",
+					" where sourcedata_residents_source1_cid is not null \\\n",
+					" union all \\\n",
+					" select CustomerID, sourcedata_residents_source2_cid as cid, SurveyEmail from c360_data.customer_profile_ids \\\n",
+					" where sourcedata_residents_source2_cid is not null\"\n",
+					"\n",
+					"df_customer_profile_ids = spark.sql(sql_str)\n",
+					"df_customer_profile_ids.write.mode(\"overwrite\").saveAsTable(\"c360_data.customer_profile_ids_combined\")"
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"# Initial Lease details\n",
+					"sql_str = '''select cid,pid,uid, LeaseTerm as InitialLeaseTerm from \n",
+					"(\n",
+					"    select l.cid,l.pid,l.uid,l.lid,l.Type,l.LeaseTerm,\n",
+					"    SignedDate, StartDate, EndDate, MoveOutDate\n",
+					"    from c360_data.leases as l \n",
+					") t \n",
+					"where Type in ('Application')'''\n",
+					"\n",
+					"df_lease_initial = spark.sql(sql_str)\n",
+					"#display(df_lease_initial)\n",
+					"\n",
+					"#Renewals\n",
+					"sql_str = '''select cid,pid,uid, count(*) as num_renewals, \n",
+					"case when count(*) >=1 then 'Y' else 'N' end as isRenewed,\n",
+					"avg(Leaseterm) as avg_renewal_leaseterm from (\n",
+					"    select l.cid,l.pid,l.uid,l.lid,l.Type,l.LeaseTerm,\n",
+					"    SignedDate, StartDate, EndDate, MoveOutDate\n",
+					"    from c360_data.leases as l \n",
+					") t where Type = 'Renewal'\n",
+					"group by cid,pid,uid'''\n",
+					"\n",
+					"df_lease_renewal = spark.sql(sql_str)\n",
+					"#display(df_lease_renewal)\n",
+					"\n",
+					"# Moveout details\n",
+					"sql_str = '''select cid,pid,uid, min(StartDate) as min_LeaseBeginDate, max(EndDate) as max_LeaseEndDate, \n",
+					"max(MoveOutDate) as max_MoveOutDate, \n",
+					"case when max(MoveOutDate) is null then 'N' else 'Y' end as isMovedOut,\n",
+					"DATEDIFF(max(MoveOutDate),max(EndDate)) as diffMoveOutDays,\n",
+					"case when DATEDIFF(max(MoveOutDate),max(EndDate)) > 30 then 'Y' else 'N' end as isEarlyMoveOut\n",
+					"from \n",
+					"(\n",
+					"    select l.cid,l.pid,l.uid,l.lid,l.Type,l.LeaseTerm,\n",
+					"    SignedDate, StartDate, EndDate, MoveOutDate\n",
+					"    from c360_data.leases as l \n",
+					") t \n",
+					"group by cid,pid,uid'''\n",
+					"\n",
+					"df_lease_moveout = spark.sql(sql_str)\n",
+					"#display(df_lease_moveout)\n",
+					"\n",
+					"df_leasedata = df_lease_initial.join(df_lease_renewal,[\"cid\",\"pid\",\"uid\"],how='left')\n",
+					"df_leasedata = df_leasedata.join(df_lease_moveout,[\"cid\",\"pid\",\"uid\"],how='left')"
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"# get workorder details\n",
+					"sql_str = '''select cid, pid,uid,workorder_type, count(*) as num_workorders\n",
+					"from \n",
+					"(\n",
+					"    select cid, pid,uid, \n",
+					"    CONCAT('WO_',workorder_type) as workorder_type,\n",
+					"    ServiceRequestDate, ServiceCompleteDate\n",
+					"    from c360_data.workorders\n",
+					") t\n",
+					"Group by cid,pid,uid,workorder_type'''\n",
+					"\n",
+					"df_workorders = spark.sql(sql_str)\n",
+					"\n",
+					"# remove any special characters in subcategory column\n",
+					"df_workorders = df_workorders.withColumn(\"workorder_type\",F.regexp_replace(F.col(\"workorder_type\"), \"[^0-9a-zA-Z_$]+\", \"\"))\n",
+					"\n",
+					"# pivot rows into columns to get each work order subcategory as a column\n",
+					"#https://stackoverflow.com/questions/33732346/spark-dataframe-transform-multiple-rows-to-column\n",
+					"df_workorders = df_workorders.groupby(['cid','pid','uid']).pivot('workorder_type').max('num_workorders').fillna(0)\n",
+					"\n",
+					"#display(df_workorders.take(2))\n",
+					"# df_workorders.columns"
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"#get survey data\n",
+					"sql_str = '''select cid,pid,concat(surveytype,'_',question) as Survey_Question, Avg(CAST(answer as INT)) as avg_SurveryAnswer from\n",
+					"(\n",
+					"    SELECT s.pid, ids.cid, s.sid,\n",
+					"    s.question, s.answer,\n",
+					"    s.surveytype\n",
+					"    FROM c360_data.surveys s\n",
+					"    inner join c360_data.customer_profile_ids_combined as ids on s.email = ids.SurveyEmail\n",
+					") t\n",
+					"Group by cid, pid, Survey_Question'''\n",
+					"\n",
+					"df_surveydata = spark.sql(sql_str)\n",
+					"\n",
+					"# remove any special characters in Survey_Question column\n",
+					"df_surveydata = df_surveydata.withColumn(\"Survey_Question\",F.regexp_replace(F.col(\"Survey_Question\"), \"[^0-9a-zA-Z_$]+\", \"\"))\n",
+					"\n",
+					"# pivot rows into columns to get each Survey_Question as a column\n",
+					"df_surveydata = df_surveydata.groupby(['cid','pid']).pivot('Survey_Question').max('avg_SurveryAnswer').fillna(0)\n",
+					"\n",
+					"# remove any special characters in subcategory name in columns\n",
+					"#df_surveydata = df_surveydata.select([F.col(col).alias(re.sub(\"[^0-9a-zA-Z_$]+\",\"\",col)) for col in df_surveydata.columns])\n",
+					""
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"outputs_hidden": false,
+						"source_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"df_all_data = df_leasedata.join(df_workorders,[\"cid\",\"pid\",\"uid\"], how='left')\n",
+					"df_all_data = df_all_data.join(df_surveydata,[\"cid\",\"pid\"], how='left')\n",
+					"#display(df_all_data)\n",
+					"df_all_data.write.mode(\"overwrite\").saveAsTable(\"c360_data.prepareddata\")"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"mssparkutils.notebook.exit(\"c360_data.prepareddata\")"
+				]
+			}
+		]
+	}
+}
